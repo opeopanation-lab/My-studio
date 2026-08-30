@@ -1,0 +1,6 @@
+{
+  "name": "Nation Wide Studio",
+  "description": "Multi-language code translation studio with framework conversion, standalone Android APK packaging engine, AI code intelligence, real-time syntax checking, git version control, team analytics, and end-to-end encrypted cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
