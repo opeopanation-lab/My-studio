@@ -101,3 +101,21 @@ data class GitPushResult(
     val remoteRef: String = "origin/main",
     val summary: String = ""
 )
+
+data class ProjectGitStatus(
+    val projectId: String = "active_project",
+    val projectName: String = "Active Code Project",
+    val activeBranch: String = "main",
+    val isDefaultBranch: Boolean = true,
+    val uncommittedChangesCount: Int = 0,
+    val uncommittedFilesCount: Int = 0,
+    val isWorkingTreeClean: Boolean = true,
+    val insertionsCount: Int = 0,
+    val deletionsCount: Int = 0,
+    val aheadCount: Int = 0,
+    val behindCount: Int = 0,
+    val uncommittedFiles: List<GitStagedFile> = emptyList(),
+    val lastCommitId: String = "c_init",
+    val lastCommitMessage: String = "Initial project AST snapshot",
+    val lastCommitTimestamp: Long = System.currentTimeMillis()
+)

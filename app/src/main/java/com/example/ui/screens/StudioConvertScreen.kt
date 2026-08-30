@@ -71,9 +71,12 @@ import com.example.ui.components.CiCdWorkflowDialog
 import com.example.ui.components.CodeReviewAnnotationsDialog
 import com.example.ui.components.MultiFileWorkspaceDialog
 import com.example.ui.components.GitControlBar
+import com.example.ui.components.GitProjectStatusBanner
+import com.example.ui.components.GitUncommittedChangesSheet
 import com.example.ui.components.GitSyncDialog
 import com.example.ui.components.DiagnosticPanelDialog
 import com.example.ui.components.ApkCompilationDashboardDialog
+import com.example.ui.components.SecurityEncryptionSettingsDialog
 import com.example.model.SyntaxTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -163,12 +166,15 @@ fun StudioConvertScreen(
     val activeBranch by viewModel.activeBranch.collectAsState()
     val gitSyncStatus by viewModel.gitSyncStatus.collectAsState()
     val gitRemoteConfig by viewModel.gitRemoteConfig.collectAsState()
+    val projectGitStatus by viewModel.projectGitStatus.collectAsState()
     val isGitOperating by viewModel.isGitOperating.collectAsState()
     val isAiAnalyzingDiagnostics by viewModel.isAiAnalyzingDiagnostics.collectAsState()
     val apkBuildStatus by viewModel.apkBuildStatus.collectAsState()
     val generatedApkProject by viewModel.generatedApkProject.collectAsState()
     val apkBuildLogs by viewModel.apkBuildLogs.collectAsState()
     val apkConfig by viewModel.apkConfig.collectAsState()
+    val e2eConfig by viewModel.e2eEncryptionConfig.collectAsState()
+    val syncStatus by viewModel.syncStatus.collectAsState()
 
     var showApkBuilderDialog by remember { mutableStateOf(false) }
     var showApkDashboardDialog by remember { mutableStateOf(false) }
@@ -176,6 +182,7 @@ fun StudioConvertScreen(
     var showGitSyncDialog by remember { mutableStateOf(false) }
     var showDiagnosticDialog by remember { mutableStateOf(false) }
     var showQuickCommitDialog by remember { mutableStateOf(false) }
+    var showUncommittedChangesSheet by remember { mutableStateOf(false) }
     var quickCommitMsg by remember { mutableStateOf("") }
     var showDocsDialog by remember { mutableStateOf(false) }
     var showTestsDialog by remember { mutableStateOf(false) }
@@ -195,6 +202,7 @@ fun StudioConvertScreen(
     var showCodeReviewDialog by remember { mutableStateOf(false) }
     var showMultiFileWorkspaceDialog by remember { mutableStateOf(false) }
     var showInteractiveSandboxDialog by remember { mutableStateOf(false) }
+    var showSecuritySettingsDialog by remember { mutableStateOf(false) }
 
     var showSourceLangMenu by remember { mutableStateOf(false) }
     var showTargetLangMenu by remember { mutableStateOf(false) }
@@ -460,13 +468,24 @@ fun StudioConvertScreen(
             }
         }
 
+        // Visual Git Branch & Uncommitted Changes Status Indicator Banner
+        GitProjectStatusBanner(
+            gitStatus = projectGitStatus,
+            availableBranches = branches,
+            onSwitchBranch = { viewModel.switchBranch(it) },
+            onOpenCommitSheet = { showUncommittedChangesSheet = true },
+            onOpenGitSync = { showGitSyncDialog = true },
+            onDiscardChanges = { viewModel.discardUncommittedChanges() },
+            modifier = Modifier.testTag("workspace_git_status_banner")
+        )
+
         // Git Version Control Integrated Bar
         GitControlBar(
             activeBranch = activeBranch,
             syncStatus = gitSyncStatus,
             isOperating = isGitOperating,
             onOpenGitCenter = { showGitSyncDialog = true },
-            onQuickCommit = { showQuickCommitDialog = true },
+            onQuickCommit = { showUncommittedChangesSheet = true },
             onQuickPush = { viewModel.pushToRemote() },
             onQuickPull = { viewModel.pullFromRemote() },
             modifier = Modifier.testTag("git_control_bar_wrapper")
@@ -853,6 +872,29 @@ fun StudioConvertScreen(
                         Icon(Icons.Default.QrCode2, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("QR Share", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    // 13. E2E Cloud Security & Encryption
+                    Button(
+                        onClick = { showSecuritySettingsDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (e2eConfig.isE2EEnabled) Color(0xFF10B981) else Color(0xFFF59E0B)),
+                        modifier = Modifier.height(36.dp).testTag("action_row_e2e_security_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = if (e2eConfig.isE2EEnabled) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (e2eConfig.isE2EEnabled) "E2E: ${e2eConfig.selectedCipher.name.take(7)}" else "E2E Off",
+                            fontSize = 11.sp,
+                            color = if (e2eConfig.isE2EEnabled) Color(0xFF34D399) else Color(0xFFFBBF24),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -1939,6 +1981,33 @@ fun StudioConvertScreen(
             },
             containerColor = Color(0xFF1E293B),
             shape = RoundedCornerShape(12.dp)
+        )
+    }
+
+    if (showSecuritySettingsDialog) {
+        SecurityEncryptionSettingsDialog(
+            config = e2eConfig,
+            syncStatus = syncStatus,
+            onDismissRequest = { showSecuritySettingsDialog = false },
+            onUpdateConfig = { updated -> viewModel.updateE2EEncryptionConfig(updated) },
+            onToggleE2E = { enabled -> viewModel.toggleE2EEncryption(enabled) },
+            onRotateMasterKey = { viewModel.rotateMasterEncryptionKey() },
+            onGenerateNewRecoveryPhrase = { viewModel.generateNewMnemonicPhrase() }
+        )
+    }
+
+    if (showUncommittedChangesSheet) {
+        GitUncommittedChangesSheet(
+            gitStatus = projectGitStatus,
+            onCommit = { msg ->
+                viewModel.commitCurrentCode(msg)
+                showUncommittedChangesSheet = false
+            },
+            onDiscardChanges = {
+                viewModel.discardUncommittedChanges()
+                showUncommittedChangesSheet = false
+            },
+            onDismissRequest = { showUncommittedChangesSheet = false }
         )
     }
 }

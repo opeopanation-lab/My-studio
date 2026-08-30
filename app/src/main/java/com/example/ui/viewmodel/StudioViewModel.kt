@@ -186,6 +186,7 @@ class UserProfile(BaseModel):
     val activeConflicts = repository.activeConflicts
     val notificationSettings = repository.notificationSettings
     val privacyCompliance = repository.privacyCompliance
+    val e2eEncryptionConfig = repository.e2eEncryptionConfig
     val gitHubToken = repository.gitHubToken
 
     val allCommits = database.commitDao().getAllCommits().map { commits ->
@@ -225,6 +226,156 @@ class UserProfile(BaseModel):
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Git & Working Tree Baseline Tracking
+    private val _baselineSourceCode = MutableStateFlow(Language.PYTHON.defaultSnippet)
+    private val _baselineTargetCode = MutableStateFlow(Language.JAVASCRIPT.defaultSnippet)
+    private val _baselineProjectFiles = MutableStateFlow<Map<String, String>>(
+        mapOf(
+            "src/main.py" to Language.PYTHON.defaultSnippet,
+            "src/models.py" to """from pydantic import BaseModel
+from typing import List, Optional
+
+class UserProfile(BaseModel):
+    user_id: str
+    display_name: str
+    roles: List[str] = ["developer"]
+    is_active: bool = True
+""",
+            "requirements.txt" to "fastapi==0.110.0\npydantic==2.6.4\nuvicorn==0.28.0\npytest==8.1.1\n"
+        )
+    )
+
+    // Reactive computation of Project Git Branch & Uncommitted Changes Status
+    val projectGitStatus: StateFlow<com.example.model.ProjectGitStatus> = combine(
+        combine(_activeBranch, _isProjectMode, _projectFiles, _sourceCode, _targetCode) { branch, isProj, files, src, tgt ->
+            Triple(Triple(branch, isProj, files), src, tgt)
+        },
+        combine(_baselineSourceCode, _baselineTargetCode, _baselineProjectFiles, gitSyncStatus) { baseSrc, baseTgt, baseFiles, syncStat ->
+            Triple(Triple(baseSrc, baseTgt, baseFiles), syncStat, null)
+        }
+    ) { (state1, srcCode, tgtCode), (baseState, syncStat, _) ->
+        val (branch, isProjMode, projFiles) = state1
+        val (baseSrc, baseTgt, baseProjFiles) = baseState
+
+        val uncommittedList = mutableListOf<com.example.model.GitStagedFile>()
+        var totalInsertions = 0
+        var totalDeletions = 0
+
+        if (isProjMode) {
+            projFiles.forEach { file ->
+                val baseline = baseProjFiles[file.path]
+                if (baseline == null) {
+                    val ins = file.content.lines().size
+                    uncommittedList.add(
+                        com.example.model.GitStagedFile(
+                            filePath = file.path,
+                            status = com.example.model.GitFileStatus.ADDED,
+                            isStaged = true,
+                            insertions = ins,
+                            deletions = 0
+                        )
+                    )
+                    totalInsertions += ins
+                } else if (baseline != file.content) {
+                    val baseLines = baseline.lines()
+                    val currLines = file.content.lines()
+                    val ins = (currLines.size - baseLines.size).coerceAtLeast(1)
+                    val del = (baseLines.size - currLines.size).coerceAtLeast(0)
+                    uncommittedList.add(
+                        com.example.model.GitStagedFile(
+                            filePath = file.path,
+                            status = com.example.model.GitFileStatus.MODIFIED,
+                            isStaged = true,
+                            insertions = ins,
+                            deletions = del
+                        )
+                    )
+                    totalInsertions += ins
+                    totalDeletions += del
+                }
+            }
+
+            baseProjFiles.keys.forEach { path ->
+                if (projFiles.none { it.path == path }) {
+                    val del = baseProjFiles[path]?.lines()?.size ?: 1
+                    uncommittedList.add(
+                        com.example.model.GitStagedFile(
+                            filePath = path,
+                            status = com.example.model.GitFileStatus.DELETED,
+                            isStaged = true,
+                            insertions = 0,
+                            deletions = del
+                        )
+                    )
+                    totalDeletions += del
+                }
+            }
+        } else {
+            val srcExt = _sourceLanguage.value.extension.removePrefix(".")
+            val tgtExt = _targetLanguage.value.extension.removePrefix(".")
+
+            if (srcCode != baseSrc) {
+                val baseLines = baseSrc.lines()
+                val currLines = srcCode.lines()
+                val ins = (currLines.size - baseLines.size).coerceAtLeast(1)
+                val del = (baseLines.size - currLines.size).coerceAtLeast(0)
+                uncommittedList.add(
+                    com.example.model.GitStagedFile(
+                        filePath = "src/main.$srcExt",
+                        status = com.example.model.GitFileStatus.MODIFIED,
+                        isStaged = true,
+                        insertions = ins,
+                        deletions = del
+                    )
+                )
+                totalInsertions += ins
+                totalDeletions += del
+            }
+
+            if (tgtCode.isNotBlank() && tgtCode != baseTgt && tgtCode != "// Converted code will appear here...") {
+                val baseLines = baseTgt.lines()
+                val currLines = tgtCode.lines()
+                val ins = (currLines.size - baseLines.size).coerceAtLeast(1)
+                val del = (baseLines.size - currLines.size).coerceAtLeast(0)
+                uncommittedList.add(
+                    com.example.model.GitStagedFile(
+                        filePath = "dist/app.$tgtExt",
+                        status = com.example.model.GitFileStatus.MODIFIED,
+                        isStaged = true,
+                        insertions = ins,
+                        deletions = del
+                    )
+                )
+                totalInsertions += ins
+                totalDeletions += del
+            }
+        }
+
+        val totalChangesCount = uncommittedList.size
+        val isClean = totalChangesCount == 0
+
+        val projectName = if (isProjMode) "Multi-File Project Workspace" else "${_sourceLanguage.value.displayName} to ${_targetLanguage.value.displayName} Service"
+
+        com.example.model.ProjectGitStatus(
+            projectId = if (isProjMode) "proj_workspace" else "proj_${_sourceLanguage.value.id}_to_${_targetLanguage.value.id}",
+            projectName = projectName,
+            activeBranch = branch,
+            isDefaultBranch = branch == "main",
+            uncommittedChangesCount = totalChangesCount,
+            uncommittedFilesCount = uncommittedList.size,
+            isWorkingTreeClean = isClean,
+            insertionsCount = totalInsertions,
+            deletionsCount = totalDeletions,
+            aheadCount = syncStat.aheadCount,
+            behindCount = syncStat.behindCount,
+            uncommittedFiles = uncommittedList
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        com.example.model.ProjectGitStatus()
+    )
 
     init {
         runRealtimeSyntaxCheck()
@@ -393,8 +544,33 @@ class UserProfile(BaseModel):
                 sourceLang = _sourceLanguage.value.displayName,
                 targetLang = _targetLanguage.value.displayName
             )
-            _statusMessage.value = "Committed $commitId to ${_activeBranch.value}"
+            // Update baselines to committed working tree
+            _baselineSourceCode.value = _sourceCode.value
+            _baselineTargetCode.value = _targetCode.value
+            _baselineProjectFiles.value = _projectFiles.value.associate { it.path to it.content }
+            _statusMessage.value = "Committed $commitId to ${_activeBranch.value}: \"$message\""
         }
+    }
+
+    fun discardUncommittedChanges() {
+        _sourceCode.value = _baselineSourceCode.value
+        _targetCode.value = _baselineTargetCode.value
+        val restoredFiles = _baselineProjectFiles.value.entries.mapIndexed { idx, entry ->
+            com.example.model.ProjectFile(
+                id = "f_$idx",
+                name = entry.key.substringAfterLast('/'),
+                path = entry.key,
+                language = if (entry.key.endsWith(".py")) Language.PYTHON else if (entry.key.endsWith(".js")) Language.JAVASCRIPT else Language.TYPESCRIPT,
+                content = entry.value,
+                isManifest = entry.key.contains("requirements") || entry.key.contains("package.json")
+            )
+        }
+        if (restoredFiles.isNotEmpty()) {
+            _projectFiles.value = restoredFiles
+        }
+        runRealtimeSyntaxCheck()
+        _statusMessage.value = "Discarded uncommitted changes. Working tree restored to HEAD."
+        repository.logAuditAction("GIT_DISCARD", "Discarded uncommitted working tree changes on branch '${_activeBranch.value}'")
     }
 
     fun pushToRemote() {
@@ -997,5 +1173,25 @@ class UserProfile(BaseModel):
                 _statusMessage.value = "Failed to export Web Bundle: ${e.localizedMessage}"
             }
         }
+    }
+
+    fun updateE2EEncryptionConfig(config: com.example.model.E2EEncryptionConfig) {
+        repository.setE2EEncryptionConfig(config)
+        _statusMessage.value = if (config.isE2EEnabled) "E2E Encryption policy updated & active" else "E2E Encryption policy disabled"
+    }
+
+    fun toggleE2EEncryption(enabled: Boolean) {
+        repository.toggleE2EEncryption(enabled)
+        _statusMessage.value = if (enabled) "End-to-End Encryption enabled for cloud data" else "End-to-End Encryption disabled"
+    }
+
+    fun rotateMasterEncryptionKey() {
+        val newFp = repository.rotateMasterEncryptionKey()
+        _statusMessage.value = "Rotated master keypair: $newFp"
+    }
+
+    fun generateNewMnemonicPhrase() {
+        val words = repository.generateNewMnemonicPhrase()
+        _statusMessage.value = "Generated new 12-word recovery phrase"
     }
 }

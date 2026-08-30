@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.model.CloudSyncStatus
+import com.example.model.ProjectGitStatus
 import com.example.model.SyncState
 import com.example.model.UserRole
 
@@ -59,6 +60,9 @@ fun BrandingTopBar(
     currentUserRole: UserRole,
     onToggleOffline: () -> Unit,
     onSearchClick: () -> Unit,
+    onOpenSecuritySettings: () -> Unit = {},
+    gitStatus: ProjectGitStatus? = null,
+    onOpenGitStatus: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -212,21 +216,41 @@ fun BrandingTopBar(
                         )
                     }
 
-                    // E2E Encryption indicator
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = Color(0xFF10B981),
-                            modifier = Modifier.size(12.dp)
+                    // Git Branch & Uncommitted Changes Pill
+                    if (gitStatus != null) {
+                        GitProjectStatusPill(
+                            gitStatus = gitStatus,
+                            onClick = onOpenGitStatus
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "AES-256",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                    }
+
+                    // E2E Encryption interactive indicator pill
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (syncStatus.isE2EEncrypted) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, if (syncStatus.isE2EEncrypted) Color(0xFF10B981) else Color(0xFFF59E0B)),
+                        modifier = Modifier
+                            .clickable { onOpenSecuritySettings() }
+                            .testTag("security_settings_topbar_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Security Settings",
+                                tint = if (syncStatus.isE2EEncrypted) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (syncStatus.isE2EEncrypted) "E2E: ${syncStatus.encryptionAlgorithm.take(7)}" else "E2E: OFF",
+                                color = if (syncStatus.isE2EEncrypted) Color(0xFF34D399) else Color(0xFFFBBF24),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     // Role Chip

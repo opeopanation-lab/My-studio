@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Sync
 import com.example.ui.components.GitSyncDialog
+import com.example.ui.components.GitProjectStatusBanner
+import com.example.ui.components.GitUncommittedChangesSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,11 +92,13 @@ fun VersionControlScreen(
     val gitSyncStatus by viewModel.gitSyncStatus.collectAsState()
     val gitRemoteConfig by viewModel.gitRemoteConfig.collectAsState()
     val isGitOperating by viewModel.isGitOperating.collectAsState()
+    val projectGitStatus by viewModel.projectGitStatus.collectAsState()
     val sourceCode by viewModel.sourceCode.collectAsState()
     val targetCode by viewModel.targetCode.collectAsState()
 
     var showHistorySheet by remember { mutableStateOf(false) }
     var showGitSyncDialog by remember { mutableStateOf(false) }
+    var showUncommittedChangesSheet by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Commits & Branches, 1: Conflict Resolver
     var showNewBranchDialog by remember { mutableStateOf(false) }
     var newBranchName by remember { mutableStateOf("") }
@@ -111,6 +115,17 @@ fun VersionControlScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Visual Git Branch & Uncommitted Changes Status Indicator Banner
+        GitProjectStatusBanner(
+            gitStatus = projectGitStatus,
+            availableBranches = branches,
+            onSwitchBranch = { viewModel.switchBranch(it) },
+            onOpenCommitSheet = { showUncommittedChangesSheet = true },
+            onOpenGitSync = { showGitSyncDialog = true },
+            onDiscardChanges = { viewModel.discardUncommittedChanges() },
+            modifier = Modifier.testTag("vc_git_project_status_banner")
+        )
+
         // Top Version Control Header Card
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -596,6 +611,21 @@ fun VersionControlScreen(
             onCreateBranch = { b -> viewModel.createBranch(b) },
             onUpdateRemoteUrl = { url -> viewModel.updateRemoteUrl(url) },
             onDismissRequest = { showGitSyncDialog = false }
+        )
+    }
+
+    if (showUncommittedChangesSheet) {
+        GitUncommittedChangesSheet(
+            gitStatus = projectGitStatus,
+            onCommit = { message ->
+                viewModel.commitCurrentCode(message)
+                showUncommittedChangesSheet = false
+            },
+            onDiscardChanges = {
+                viewModel.discardUncommittedChanges()
+                showUncommittedChangesSheet = false
+            },
+            onDismissRequest = { showUncommittedChangesSheet = false }
         )
     }
 }

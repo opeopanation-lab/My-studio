@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppThemeMode
 import com.example.model.SyntaxTheme
+import com.example.ui.components.SecurityEncryptionSettingsDialog
 import com.example.ui.viewmodel.StudioViewModel
 
 @Composable
@@ -68,11 +69,13 @@ fun SettingsPrivacyScreen(
     val syntaxTheme by viewModel.syntaxTheme.collectAsState()
     val gitHubToken by viewModel.gitHubToken.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
+    val e2eConfig by viewModel.e2eEncryptionConfig.collectAsState()
     val notifSettings by viewModel.notificationSettings.collectAsState()
     val privacyCompliance by viewModel.privacyCompliance.collectAsState()
     val auditLogs by viewModel.auditLogs.collectAsState()
 
     var showPurgeDialog by remember { mutableStateOf(false) }
+    var showSecuritySettingsDialog by remember { mutableStateOf(false) }
     var tokenInput by remember { mutableStateOf(gitHubToken) }
 
     val scrollState = rememberScrollState()
@@ -238,6 +241,100 @@ fun SettingsPrivacyScreen(
             }
         }
 
+        // Section 2b: End-to-End Encryption (E2E) & Cloud Data Security Panel
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF0F172A),
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (e2eConfig.isE2EEnabled) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFF1E293B))
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = if (e2eConfig.isE2EEnabled) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("End-to-End Cloud Encryption", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                    }
+
+                    Switch(
+                        checked = e2eConfig.isE2EEnabled,
+                        onCheckedChange = { viewModel.toggleE2EEncryption(it) },
+                        modifier = Modifier.testTag("settings_e2e_toggle_switch"),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF10B981),
+                            checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.3f)
+                        )
+                    )
+                }
+
+                Text(
+                    text = "Client-side cryptographic vault for synced code, AST graphs, commits, and multi-file projects.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8)
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF070B14),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1E293B)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("ACTIVE CIPHER SUITE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Text(
+                                text = e2eConfig.selectedCipher.displayName,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00F0FF)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (e2eConfig.isE2EEnabled) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, if (e2eConfig.isE2EEnabled) Color(0xFF10B981) else Color(0xFFF59E0B))
+                        ) {
+                            Text(
+                                text = if (e2eConfig.isE2EEnabled) "ZERO-KNOWLEDGE" else "OFF",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (e2eConfig.isE2EEnabled) Color(0xFF34D399) else Color(0xFFFBBF24),
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = { showSecuritySettingsDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("open_security_panel_button")
+                ) {
+                    Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Configure Security & Cryptographic Keys", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         // Section 3: Enterprise Security & Privacy Toggles
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -381,6 +478,19 @@ fun SettingsPrivacyScreen(
                 }
             }
         }
+    }
+
+    // Security Encryption Settings Dialog
+    if (showSecuritySettingsDialog) {
+        SecurityEncryptionSettingsDialog(
+            config = e2eConfig,
+            syncStatus = syncStatus,
+            onDismissRequest = { showSecuritySettingsDialog = false },
+            onUpdateConfig = { updated -> viewModel.updateE2EEncryptionConfig(updated) },
+            onToggleE2E = { enabled -> viewModel.toggleE2EEncryption(enabled) },
+            onRotateMasterKey = { viewModel.rotateMasterEncryptionKey() },
+            onGenerateNewRecoveryPhrase = { viewModel.generateNewMnemonicPhrase() }
+        )
     }
 
     // Purge Confirmation Dialog

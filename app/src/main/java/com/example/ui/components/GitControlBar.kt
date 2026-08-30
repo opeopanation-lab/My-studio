@@ -86,10 +86,66 @@ fun GitControlBar(
                     text = activeBranch,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00F0FF)
+                    color = Color(0xFF00F0FF),
+                    modifier = Modifier.testTag("git_control_active_branch")
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
+
+                // Uncommitted Changes Indicator Pill
+                if (syncStatus.uncommittedChangesCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFF59E0B).copy(alpha = 0.2f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                        modifier = Modifier.testTag("uncommitted_changes_badge")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .background(Color(0xFFF59E0B), androidx.compose.foundation.shape.CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${syncStatus.uncommittedChangesCount} uncommitted",
+                                fontSize = 9.sp,
+                                color = Color(0xFFFBBF24),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                        modifier = Modifier.testTag("clean_working_tree_badge")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .background(Color(0xFF10B981), androidx.compose.foundation.shape.CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Clean",
+                                fontSize = 9.sp,
+                                color = Color(0xFF34D399),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
 
                 if (syncStatus.aheadCount > 0) {
                     Surface(

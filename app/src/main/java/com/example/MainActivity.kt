@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -47,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.BrandingTopBar
+import com.example.ui.components.GitUncommittedChangesSheet
+import com.example.ui.components.SecurityEncryptionSettingsDialog
 import com.example.ui.screens.AnalyticsDashboardScreen
 import com.example.ui.screens.GlobalSearchScreen
 import com.example.ui.screens.SettingsPrivacyScreen
@@ -65,10 +68,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             val appThemeMode by viewModel.appThemeMode.collectAsState()
             val syncStatus by viewModel.syncStatus.collectAsState()
+            val e2eConfig by viewModel.e2eEncryptionConfig.collectAsState()
             val currentRole by viewModel.currentUserRole.collectAsState()
             val statusMsg by viewModel.statusMessage.collectAsState()
+            val projectGitStatus by viewModel.projectGitStatus.collectAsState()
 
             var selectedNavTab by remember { mutableIntStateOf(0) }
+            var showSecuritySettingsDialog by remember { mutableStateOf(false) }
+            var showGitStatusSheet by remember { mutableStateOf(false) }
             val snackbarHostState = remember { SnackbarHostState() }
 
             LaunchedEffect(statusMsg) {
@@ -86,7 +93,10 @@ class MainActivity : ComponentActivity() {
                             syncStatus = syncStatus,
                             currentUserRole = currentRole,
                             onToggleOffline = { viewModel.repository.toggleOfflineMode() },
-                            onSearchClick = { selectedNavTab = 4 }
+                            onSearchClick = { selectedNavTab = 4 },
+                            onOpenSecuritySettings = { showSecuritySettingsDialog = true },
+                            gitStatus = projectGitStatus,
+                            onOpenGitStatus = { showGitStatusSheet = true }
                         )
                     },
                     bottomBar = {
@@ -198,6 +208,27 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
+
+                if (showSecuritySettingsDialog) {
+                    SecurityEncryptionSettingsDialog(
+                        config = e2eConfig,
+                        syncStatus = syncStatus,
+                        onDismissRequest = { showSecuritySettingsDialog = false },
+                        onUpdateConfig = { updated -> viewModel.updateE2EEncryptionConfig(updated) },
+                        onToggleE2E = { enabled -> viewModel.toggleE2EEncryption(enabled) },
+                        onRotateMasterKey = { viewModel.rotateMasterEncryptionKey() },
+                        onGenerateNewRecoveryPhrase = { viewModel.generateNewMnemonicPhrase() }
+                    )
+                }
+
+                if (showGitStatusSheet) {
+                    GitUncommittedChangesSheet(
+                        gitStatus = projectGitStatus,
+                        onCommit = { message -> viewModel.commitCurrentCode(message) },
+                        onDiscardChanges = { viewModel.discardUncommittedChanges() },
+                        onDismissRequest = { showGitStatusSheet = false }
+                    )
                 }
             }
         }
