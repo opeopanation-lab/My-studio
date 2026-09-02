@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
@@ -69,6 +71,7 @@ fun CodeEditorView(
     onGenerateTests: (() -> Unit)? = null,
     onAiSuggest: (() -> Unit)? = null,
     onOpenDiagnostics: (() -> Unit)? = null,
+    onExport: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -140,6 +143,23 @@ fun CodeEditorView(
                         }
                     }
 
+                    // Export to Storage button
+                    if (onExport != null) {
+                        IconButton(
+                            onClick = onExport,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("export_button_$title")
+                        ) {
+                            Icon(
+                                Icons.Default.SaveAlt,
+                                contentDescription = "Export Code to Storage",
+                                tint = Color(0xFF00F0FF),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+
                     // Copy button
                     IconButton(
                         onClick = {
@@ -178,7 +198,7 @@ fun CodeEditorView(
                 }
             }
 
-            // Quick Tool Bar Actions (Docs, Tests, AI Refactor)
+            // Quick Tool Bar Actions (Docs, Tests, AI Refactor, Export)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -187,6 +207,24 @@ fun CodeEditorView(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                if (onExport != null) {
+                    AssistChip(
+                        onClick = onExport,
+                        label = { Text("Export File", fontSize = 10.sp, color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.SaveAlt,
+                                contentDescription = null,
+                                tint = Color(0xFF00F0FF),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        },
+                        colors = AssistChipDefaults.assistChipColors(containerColor = syntaxTheme.surface),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.5f)),
+                        modifier = Modifier.height(26.dp)
+                    )
+                }
+
                 if (onAiSuggest != null) {
                     AssistChip(
                         onClick = onAiSuggest,

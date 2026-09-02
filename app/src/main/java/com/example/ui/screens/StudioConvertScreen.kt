@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -77,6 +78,7 @@ import com.example.ui.components.GitSyncDialog
 import com.example.ui.components.DiagnosticPanelDialog
 import com.example.ui.components.ApkCompilationDashboardDialog
 import com.example.ui.components.SecurityEncryptionSettingsDialog
+import com.example.ui.components.ExportCodeFileDialog
 import com.example.model.SyntaxTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -187,6 +189,11 @@ fun StudioConvertScreen(
     var showDocsDialog by remember { mutableStateOf(false) }
     var showTestsDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showTextFileExportDialog by remember { mutableStateOf(false) }
+    var exportCodePayload by remember { mutableStateOf("") }
+    var exportLanguagePayload by remember { mutableStateOf(Language.PYTHON) }
+    var exportFrameworkPayload by remember { mutableStateOf("") }
+    var exportInitialFileName by remember { mutableStateOf("converted_code") }
     var showExplainerDialog by remember { mutableStateOf(false) }
     var showComplexityDialog by remember { mutableStateOf(false) }
     var showSecurityDialog by remember { mutableStateOf(false) }
@@ -566,6 +573,13 @@ fun StudioConvertScreen(
                 onGenerateTests = { viewModel.generateTests(); showTestsDialog = true },
                 onAiSuggest = { viewModel.convertCode() },
                 onOpenDiagnostics = { showDiagnosticDialog = true },
+                onExport = {
+                    exportCodePayload = sourceCode
+                    exportLanguagePayload = sourceLang
+                    exportFrameworkPayload = sourceFw
+                    exportInitialFileName = "source_${sourceLang.id}_code"
+                    showTextFileExportDialog = true
+                },
                 modifier = Modifier.testTag("source_editor_view")
             )
         }
@@ -583,6 +597,13 @@ fun StudioConvertScreen(
                 onGenerateDocs = { viewModel.generateDocumentation(); showDocsDialog = true },
                 onGenerateTests = { viewModel.generateTests(); showTestsDialog = true },
                 onOpenDiagnostics = { showDiagnosticDialog = true },
+                onExport = {
+                    exportCodePayload = targetCode
+                    exportLanguagePayload = targetLang
+                    exportFrameworkPayload = targetFw
+                    exportInitialFileName = "converted_${targetLang.id}_code"
+                    showTextFileExportDialog = true
+                },
                 modifier = Modifier.testTag("target_editor_view")
             )
         }
@@ -874,6 +895,25 @@ fun StudioConvertScreen(
                         Text("QR Share", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                     }
 
+                    // 12b. Export Code to Storage (Text File)
+                    Button(
+                        onClick = {
+                            exportCodePayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetCode else sourceCode
+                            exportLanguagePayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetLang else sourceLang
+                            exportFrameworkPayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetFw else sourceFw
+                            exportInitialFileName = "converted_${exportLanguagePayload.id}_output"
+                            showTextFileExportDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7).copy(alpha = 0.2f)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                        modifier = Modifier.height(36.dp).testTag("action_row_export_storage_button")
+                    ) {
+                        Icon(Icons.Default.SaveAlt, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Save Text File", fontSize = 11.sp, color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold)
+                    }
+
                     // 13. E2E Cloud Security & Encryption
                     Button(
                         onClick = { showSecuritySettingsDialog = true },
@@ -951,6 +991,26 @@ fun StudioConvertScreen(
                 Icon(Icons.Default.Upload, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Export & GitHub", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Button(
+                onClick = {
+                    exportCodePayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetCode else sourceCode
+                    exportLanguagePayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetLang else sourceLang
+                    exportFrameworkPayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetFw else sourceFw
+                    exportInitialFileName = "converted_${exportLanguagePayload.id}_output"
+                    showTextFileExportDialog = true
+                },
+                modifier = Modifier
+                    .height(42.dp)
+                    .testTag("quick_save_text_file_btn"),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7).copy(alpha = 0.25f)),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF))
+            ) {
+                Icon(Icons.Default.SaveAlt, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Export File", color = Color(0xFF00F0FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
 
             OutlinedButton(
@@ -1644,6 +1704,30 @@ fun StudioConvertScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Select your desired export target and packaging format:", fontSize = 11.sp, color = Color(0xFFCBD5E1))
 
+                    // Option 00: Export as Text File to Storage (SAF / Downloads)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            showExportDialog = false
+                            exportCodePayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetCode else sourceCode
+                            exportLanguagePayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetLang else sourceLang
+                            exportFrameworkPayload = if (targetCode.isNotBlank() && targetCode != "// Converted code will appear here...") targetFw else sourceFw
+                            exportInitialFileName = "converted_${exportLanguagePayload.id}_output"
+                            showTextFileExportDialog = true
+                        },
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF0284C7).copy(alpha = 0.25f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF))
+                    ) {
+                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SaveAlt, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Export as Text File to Device Storage (.${targetLang.extension} / .txt)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00F0FF))
+                                Text("Save to Downloads, Documents, or choose storage folder via SAF", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                            }
+                        }
+                    }
+
                     // Option 0: Package as Android APK
                     Surface(
                         modifier = Modifier.fillMaxWidth().clickable {
@@ -2008,6 +2092,21 @@ fun StudioConvertScreen(
                 showUncommittedChangesSheet = false
             },
             onDismissRequest = { showUncommittedChangesSheet = false }
+        )
+    }
+
+    // Text File Export Dialog to Device Storage
+    if (showTextFileExportDialog) {
+        ExportCodeFileDialog(
+            code = if (exportCodePayload.isNotBlank()) exportCodePayload else targetCode,
+            language = exportLanguagePayload,
+            framework = exportFrameworkPayload.ifBlank { targetFw },
+            sourceLanguage = sourceLang,
+            initialFileName = exportInitialFileName,
+            onExportSuccess = { fileName, destinationPath, byteCount ->
+                viewModel.logFileExport(fileName, destinationPath, byteCount)
+            },
+            onDismissRequest = { showTextFileExportDialog = false }
         )
     }
 }

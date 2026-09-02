@@ -52,6 +52,7 @@ fun MultiFileWorkspaceDialog(
 ) {
     val context = LocalContext.current
     var showNewFileDialog by remember { mutableStateOf(false) }
+    var showExportFileDialog by remember { mutableStateOf(false) }
     var newFileName by remember { mutableStateOf("") }
     var newFilePath by remember { mutableStateOf("src/") }
     var newFileLanguage by remember { mutableStateOf(Language.PYTHON) }
@@ -239,18 +240,35 @@ fun MultiFileWorkspaceDialog(
                                         fontFamily = FontFamily.Monospace
                                     )
 
-                                    if (activeFile.convertedContent.isNotBlank()) {
-                                        Surface(
-                                            color = Color(0xFF22C55E).copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(4.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF22C55E))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        if (activeFile.convertedContent.isNotBlank()) {
+                                            Surface(
+                                                color = Color(0xFF22C55E).copy(alpha = 0.2f),
+                                                shape = RoundedCornerShape(4.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF22C55E))
+                                            ) {
+                                                Text(
+                                                    "✔ Converted to ${targetLanguage.displayName}",
+                                                    color = Color(0xFF86EFAC),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        IconButton(
+                                            onClick = { showExportFileDialog = true },
+                                            modifier = Modifier.size(24.dp)
                                         ) {
-                                            Text(
-                                                "✔ Converted to ${targetLanguage.displayName}",
-                                                color = Color(0xFF86EFAC),
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            Icon(
+                                                Icons.Default.SaveAlt,
+                                                contentDescription = "Export File to Storage",
+                                                tint = Color(0xFF00F0FF),
+                                                modifier = Modifier.size(14.dp)
                                             )
                                         }
                                     }
@@ -386,6 +404,23 @@ fun MultiFileWorkspaceDialog(
                 }
             },
             containerColor = Color(0xFF0F172A)
+        )
+    }
+
+    if (showExportFileDialog && activeFile != null) {
+        val exportContent = if (activeFile.convertedContent.isNotBlank()) activeFile.convertedContent else activeFile.content
+        val exportLang = if (activeFile.convertedContent.isNotBlank()) targetLanguage else activeFile.language
+        val baseName = activeFile.name.substringBeforeLast(".")
+        ExportCodeFileDialog(
+            code = exportContent,
+            language = exportLang,
+            framework = "",
+            sourceLanguage = activeFile.language,
+            initialFileName = baseName,
+            onExportSuccess = { fileName, path, bytes ->
+                Toast.makeText(context, "Saved $fileName to $path", Toast.LENGTH_SHORT).show()
+            },
+            onDismissRequest = { showExportFileDialog = false }
         )
     }
 }

@@ -598,6 +598,14 @@ class UserProfile(BaseModel):
         _statusMessage.value = "Remote URL configured: $url"
     }
 
+    fun logFileExport(fileName: String, destinationPath: String, byteCount: Long) {
+        _statusMessage.value = "Exported '$fileName' ($byteCount bytes) to $destinationPath"
+        repository.logAuditAction(
+            action = "FILE_EXPORT_STORAGE",
+            details = "Saved converted code file '$fileName' ($byteCount bytes) to storage destination: $destinationPath"
+        )
+    }
+
     fun runDeepAiDiagnostics() {
         viewModelScope.launch(Dispatchers.IO) {
             _isAiAnalyzingDiagnostics.value = true
